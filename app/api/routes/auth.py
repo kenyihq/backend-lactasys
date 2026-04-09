@@ -4,6 +4,8 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_db
 from app.models.usuario import Usuario
 from app.models.persona import Persona
+from app.models.usuario_planta import UsuarioPlanta
+from app.models.planta import Planta
 
 router = APIRouter()
 
@@ -27,3 +29,22 @@ def login(documento: str, password: str, db: Session = Depends(get_db)):
         "user_id": str(user.id),
         "es_superadmin": user.es_superadmin
     }
+
+@router.get("/mis-plantas/{user_id}")
+def mis_plantas(user_id: str, db: Session = Depends(get_db)):
+
+    plantas = (
+        db.query(Planta)
+        .join(UsuarioPlanta, UsuarioPlanta.planta_id == Planta.id)
+        .filter(UsuarioPlanta.usuario_id == user_id)
+        .all()
+    )
+
+    return [
+        {
+            "id": str(p.id),
+            "nombre": p.nombre,
+            "codigo": p.codigo
+        }
+        for p in plantas
+    ]

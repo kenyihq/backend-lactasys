@@ -30,15 +30,21 @@ def login(documento: str, password: str, db: Session = Depends(get_db)):
         "es_superadmin": user.es_superadmin
     }
 
+
 @router.get("/mis-plantas/{user_id}")
 def mis_plantas(user_id: str, db: Session = Depends(get_db)):
 
-    plantas = (
-        db.query(Planta)
-        .join(UsuarioPlanta, UsuarioPlanta.planta_id == Planta.id)
-        .filter(UsuarioPlanta.usuario_id == user_id)
-        .all()
-    )
+    user = db.query(Usuario).filter(Usuario.id == user_id).first()
+
+    if user.es_superadmin:
+        plantas = db.query(Planta).all()
+    else:
+        plantas = (
+            db.query(Planta)
+            .join(UsuarioPlanta, UsuarioPlanta.planta_id == Planta.id)
+            .filter(UsuarioPlanta.usuario_id == user_id)
+            .all()
+        )
 
     return [
         {

@@ -8,6 +8,7 @@ from app.schemas.registro import RegistroCreate
 from app.models.registro import Registro
 from app.models.usuario_planta import UsuarioPlanta
 from app.models.cliente_planta import ClientePlanta
+from app.models.rol import Rol
 
 router = APIRouter()
 
@@ -18,6 +19,26 @@ def crear_registro(
     db: Session = Depends(get_db)
 ):
     user_id = current_user["user_id"]
+    es_superadmin = current_user["es_superadmin"]
+
+    # 👑 superadmin bypass
+    if es_superadmin:
+        tipo = "admin_override"
+    else:
+        relacion = db.query(UsuarioPlanta).filter(
+            UsuarioPlanta.usuario_id == user_id,
+            UsuarioPlanta.planta_id == data.planta_id
+        ).first()
+
+        if not relacion:
+            raise HTTPException(status_code=403, detail="Usuario no pertenece a la planta")
+
+        rol = db.query(Rol).filter(Rol.id == relacion.rol_id).first()
+
+        if rol.nombre not in ["lechero", "admin_planta"]:
+            raise HTTPException(status_code=403, detail="Rol no autorizado")
+
+        tipo = "admin_override" if rol.nombre == "admin_planta" else "normal"
 
     # 🔒 validar usuario pertenece a planta
     user_planta = db.query(UsuarioPlanta).filter(

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime
+from app.api.deps import get_current_user
 
 from app.api.deps import get_db
 from app.schemas.registro import RegistroCreate
@@ -13,9 +14,10 @@ router = APIRouter()
 @router.post("/")
 def crear_registro(
     data: RegistroCreate,
-    user_id: str,
+    current_user: dict = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    user_id = current_user["user_id"]
 
     # 🔒 validar usuario pertenece a planta
     user_planta = db.query(UsuarioPlanta).filter(

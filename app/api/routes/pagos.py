@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy import cast, Date
 
 from app.api.deps import get_db, get_current_user
+from app.schemas.pago import PagoCreate
 from app.models.registro import Registro
 from app.models.pago import Pago
 from app.models.pago_registro import PagoRegistro
@@ -18,46 +20,65 @@ def crear_pago(
     user_id = current_user["user_id"]
 
     # 🔍 obtener registros no pagados
-    registros = (
-        db.query(Registro)
+    registros_por_ganadero = (
+        db.query(
+            Registro.ganadero_id,
+            func.sum(Registro.litros).label("total_litros")
+        )
         .outerjoin(PagoRegistro, Registro.id == PagoRegistro.registro_id)
         .filter(
             Registro.planta_id == data.planta_id,
-            Registro.fecha_hora >= data.fecha_inicio,
-            Registro.fecha_hora <= data.fecha_fin,
+            cast(Registro.fecha_hora, Date) >= data.fecha_inicio,
+            cast(Registro.fecha_hora, Date) <= data.fecha_fin,
             PagoRegistro.id == None
         )
+        .group_by(Registro.ganadero_id)
         .all()
     )
 
-    if not registros:
+    if not registros_por_ganadero:
         raise HTTPException(status_code=400, detail="No hay registros para pagar")
 
-    total_litros = sum([float(r.litros) for r in registros])
-    total_pago = total_litros * data.precio_por_litro
+    for item in registros_por_ganadero:
+        total_litros = float(item.total_litros)
+        total_pago = total_litros * data.precio_por_litro
 
     # 💰 crear pago
-    pago = Pago(
-        planta_id=data.planta_id,
-        fecha_inicio=data.fecha_inicio,
-        fecha_fin=data.fecha_fin,
-        precio_por_litro=data.precio_por_litro,
-        total_litros=total_litros,
-        total_pago=total_pago,
-        created_by=user_id
-    )
+    pagos_creados = []
 
-    db.add(pago)
-    db.commit()
-    db.refresh(pago)
+    for item in registros_por_ganadero:
+        total_litros = float(item.total_litros)
+        total_pago = total_litros * data.precio_por_litro
+
+        pago = Pago(
+            ganadero_id=item.ganadero_id,
+            planta_id=data.planta_id,
+            fecha_inicio=data.fecha_inicio,
+            fecha_fin=data.fecha_fin,
+            precio_por_litro=data.precio_por_litro,
+            total_litros=total_litros,
+            total_pago=total_pago,
+            created_by=user_id
+        )
+
+        db.add(pago)
+        db.commit()
+        db.refresh(pago)
+
+        pagos_creados.append(pago)
 
     # 🔗 vincular registros
-    for r in registros:
-        pr = PagoRegistro(
-            pago_id=pago.id,
-            registro_id=r.id
-        )
-        db.add(pr)
+    for pago in pagos_creados:
+        registros = db.query(Registro).filter(
+            Registro.ganadero_id == pago.ganadero_id,
+            Registro.planta_id == data.planta_id
+        ).all()
+
+        for r in registros:
+            db.add(PagoRegistro(
+                pago_id=pago.id,
+                registro_id=r.id
+            ))
 
     db.commit()
 

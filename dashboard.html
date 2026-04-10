@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>LactaSys Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial; margin: 20px; background: #f4f4f4; }
+    h1 { color: #450247; }
+    .cards { display: flex; gap: 20px; }
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      flex: 1;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    canvas { margin-top: 30px; }
+  </style>
+</head>
+<body>
+
+<h1>🐄 LactaSys Dashboard</h1>
+
+<div class="cards">
+  <div class="card">
+    <h3>Total Litros</h3>
+    <p id="litros">-</p>
+  </div>
+  <div class="card">
+    <h3>Total Pago</h3>
+    <p id="pago">-</p>
+  </div>
+  <div class="card">
+    <h3>Pagos</h3>
+    <p id="pagos">-</p>
+  </div>
+</div>
+
+<canvas id="plantaChart"></canvas> <canvas id="ganaderoChart"></canvas>
+
+<script>
+const API = "http://localhost:8000/analytics/dashboard";
+
+async function loadData() {
+  const res = await fetch(API);
+  const data = await res.json();
+
+  // resumen
+  document.getElementById("litros").innerText = data.resumen.total_litros;
+  document.getElementById("pago").innerText = data.resumen.total_pago;
+  document.getElementById("pagos").innerText = data.resumen.cantidad_pagos;
+
+  // chart plantas
+  new Chart(document.getElementById("plantaChart"), {
+    type: "bar",
+    data: {
+      labels: data.por_planta.map(p => p.planta),
+      datasets: [{
+        label: "Litros",
+        data: data.por_planta.map(p => p.litros)
+      }]
+    }
+  });
+
+  // chart ganaderos
+  new Chart(document.getElementById("ganaderoChart"), {
+    type: "pie",
+    data: {
+      labels: data.top_ganaderos.map(g => g.ganadero),
+      datasets: [{
+        data: data.top_ganaderos.map(g => g.litros)
+      }]
+    }
+  });
+}
+
+loadData();
+</script>
+
+</body>
+</html>

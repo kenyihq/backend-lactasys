@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from app.core.security import create_access_token
 
 from app.api.deps import get_db
 from app.models.usuario import Usuario
@@ -25,9 +26,14 @@ def login(documento: str, password: str, db: Session = Depends(get_db)):
     if user.password != password:
         raise HTTPException(status_code=401, detail="Password incorrecto")
 
-    return {
+    token = create_access_token({
         "user_id": str(user.id),
         "es_superadmin": user.es_superadmin
+    })
+
+    return {
+        "access_token": token,
+        "token_type": "bearer"
     }
 
 

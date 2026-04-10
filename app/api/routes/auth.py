@@ -7,11 +7,16 @@ from app.models.usuario import Usuario
 from app.models.persona import Persona
 from app.models.usuario_planta import UsuarioPlanta
 from app.models.planta import Planta
+from app.schemas.auth import LoginRequest
 
 router = APIRouter()
 
+
 @router.post("/login")
-def login(documento: str, password: str, db: Session = Depends(get_db)):
+def login(data: LoginRequest, db: Session = Depends(get_db)):
+
+    documento = data.documento
+    password = data.password
 
     user = (
         db.query(Usuario)

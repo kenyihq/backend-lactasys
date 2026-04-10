@@ -8,6 +8,9 @@ from app.models.planta import Planta
 from app.models.ganadero import Ganadero
 from app.models.persona import Persona
 
+from app.api.deps import get_current_user
+from app.models.usuario_planta import UsuarioPlanta
+
 
 router = APIRouter()
 
@@ -67,23 +70,52 @@ def top_ganaderos(db: Session = Depends(get_db)):
 
 
 @router.get("/dashboard")
-def dashboard(db: Session = Depends(get_db)):
+def dashboard(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+
+    user_id = current_user["user_id"]
+    es_superadmin = current_user["es_superadmin"]
+
+    filtro_planta = None
+
+    if es_superadmin:
+        filtro_planta = None
+    else:
+        relaciones = db.query(UsuarioPlanta).filter(
+            UsuarioPlanta.usuario_id == user_id
+        ).all()
+
+        if not relaciones:
+            raise HTTPException(status_code=403, detail="Sin acceso")
+
+        plantas_ids = [r.planta_id for r in relaciones]
+
 
     # resumen
-    resumen = db.query(
+    query = db.query(
         func.sum(Pago.total_litros),
         func.sum(Pago.total_pago),
         func.count(Pago.id)
-    ).first()
+    )
+
+    if not es_superadmin:
+        query = query.filter(Pago.planta_id.in_(plantas_ids))
+
+    resumen = query.first()
 
     # por planta
-    por_planta = db.query(
+    query = db.query(
         Planta.nombre,
         func.sum(Pago.total_litros),
         func.sum(Pago.total_pago)
-    ).join(Planta, Pago.planta_id == Planta.id)\
-     .group_by(Planta.nombre)\
-     .all()
+    ).join(Planta, Pago.planta_id == Planta.id)
+
+    if not es_superadmin:
+        query = query.filter(Pago.planta_id.in_(plantas_ids))
+
+    por_planta = query.group_by(Planta.nombre).all()
 
     # top ganaderos
     top = db.query(

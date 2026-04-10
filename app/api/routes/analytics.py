@@ -5,6 +5,9 @@ from sqlalchemy import func
 from app.api.deps import get_db
 from app.models.pago import Pago
 from app.models.planta import Planta
+from app.models.ganadero import Ganadero
+from app.models.persona import Persona
+
 
 router = APIRouter()
 
@@ -38,6 +41,26 @@ def por_planta(db: Session = Depends(get_db)):
             "planta": r[0],
             "litros": float(r[1] or 0),
             "total": float(r[2] or 0)
+        }
+        for r in result
+    ]
+
+@router.get("/top-ganaderos")
+def top_ganaderos(db: Session = Depends(get_db)):
+    result = db.query(
+        Persona.nombres,
+        func.sum(Pago.total_litros).label("litros")
+    ).join(Ganadero, Pago.ganadero_id == Ganadero.id)\
+     .join(Persona, Ganadero.persona_id == Persona.id)\
+     .group_by(Persona.nombres)\
+     .order_by(func.sum(Pago.total_litros).desc())\
+     .limit(5)\
+     .all()
+
+    return [
+        {
+            "ganadero": r[0],
+            "litros": float(r[1])
         }
         for r in result
     ]

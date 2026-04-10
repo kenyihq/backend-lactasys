@@ -77,6 +77,10 @@ def dashboard(
 
     user_id = current_user["user_id"]
     es_superadmin = current_user["es_superadmin"]
+    
+    print("======== DEBUG ========")
+    print("USER_ID:", user_id)
+    print("ES_SUPERADMIN:", es_superadmin)
 
     filtro_planta = None
 
@@ -118,15 +122,19 @@ def dashboard(
     por_planta = query.group_by(Planta.nombre).all()
 
     # top ganaderos
-    top = db.query(
+    query = db.query(
         Persona.nombres,
         func.sum(Pago.total_litros)
     ).join(Ganadero, Pago.ganadero_id == Ganadero.id)\
-     .join(Persona, Ganadero.persona_id == Persona.id)\
-     .group_by(Persona.nombres)\
-     .order_by(func.sum(Pago.total_litros).desc())\
-     .limit(5)\
-     .all()
+    .join(Persona, Ganadero.persona_id == Persona.id)
+
+    if not es_superadmin:
+        query = query.filter(Pago.planta_id.in_(plantas_ids))
+
+    top = query.group_by(Persona.nombres)\
+        .order_by(func.sum(Pago.total_litros).desc())\
+        .limit(5)\
+        .all()
 
     return {
         "resumen": {
